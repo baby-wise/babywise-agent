@@ -4,21 +4,60 @@ from aiohttp import web
 import os
 from dotenv import load_dotenv
 from livekit import rtc
+from audio import predict_audio
+import wave
 
 # Cargar variables de entorno
 load_dotenv()
 active_agents = {}
 LIVEKIT_URL = os.getenv("LIVEKIT_URL")
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:3001/getToken")
+BACKEND_URL = os.getenv("BACKEND_URL")
 
+TEMP_DIR = "temp"
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 async def process_audio(track: rtc.RemoteAudioTrack):
     audio_stream = rtc.AudioStream(track)
+
+    buffer = bytearray()
+    file_count = 0
+
+    sample_rate = None
+    channels = None
+    sample_width = 2  # 16-bit PCM => 2 bytes
+
+    target_bytes = None  # Lo calculamos cuando tengamos el primer frame
+
     async for event in audio_stream:
-        print(f"🎵 Recibí {len(event.frame.data)} bytes de audio")
+        frame = event.frame
+
+        # Detectar parámetros de audio en el primer frame
+        if sample_rate is None or channels is None:
+            sample_rate = frame.sample_rate
+            channels = frame.num_channels
+            target_bytes = sample_rate * sample_width * channels * 6
+            print(f"🎙 Audio detectado: {sample_rate} Hz, {channels} canales")
+
+        buffer.extend(frame.data)
+
+        # Guardar cada 6 segundos
+        if target_bytes and len(buffer) >= target_bytes:
+            file_count += 1
+            filename = os.path.join(TEMP_DIR, f"audio_chunk_{file_count}.wav")
+            with wave.open(filename, 'wb') as wf:
+                wf.setnchannels(channels)
+                wf.setsampwidth(sample_width)
+                wf.setframerate(sample_rate)
+                wf.writeframes(buffer[:target_bytes])
+
+            print(f"💾 Guardado: {filename} ({len(buffer[:target_bytes])} bytes)")
+
+            # Eliminar lo ya guardado del buffer
+            buffer = buffer[target_bytes:]
+
     await audio_stream.aclose()
 
-async def monitor_participants(room):
+async def monitor_participants(room, room_name):
     """Chequea periódicamente participantes y desconecta si queda solo el agente"""
     while True:
         total = len(room.remote_participants) + 1  # +1 por el agente local
@@ -26,6 +65,8 @@ async def monitor_participants(room):
         if total == 1:
             print("[Monitor] Solo queda el agente, desconectando...")
             await room.disconnect()
+            active_agents.pop(room_name, None)
+            print(f"🛑 Agente desconectado de {room_name}")
             break
         await asyncio.sleep(5)
 
@@ -64,7 +105,7 @@ async def connect_agent_to_room(room_name, agent_identity):
         print(f"✅ Conectado al room '{room_name}' como '{agent_identity}'")
 
         # Lanzar monitoreo de participantes en background
-        asyncio.create_task(monitor_participants(room))
+        asyncio.create_task(monitor_participants(room, room_name))
 
         # Mantener conexión abierta mientras el room exista
         while True:
@@ -73,9 +114,10 @@ async def connect_agent_to_room(room_name, agent_identity):
         print(f"❌ Error conectando al room {room_name}: {e}")
     finally:
         # Siempre se ejecuta, desconectamos y limpiamos
-        await room.disconnect()
-        active_agents.pop(room_name, None)
-        print(f"🛑 Agente desconectado de {room_name}")
+        if room_name in active_agents:
+            await room.disconnect()
+            active_agents.pop(room_name, None)
+            print(f"🛑 Agente desconectado de {room_name}")
 
 
 async def handle_new_room(request):

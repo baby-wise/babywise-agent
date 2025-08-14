@@ -1,3 +1,7 @@
 livekit-agents
 python-dotenv
 aiohttp
+librosa
+tensorflow-cpu
+numpy
+soundfile
