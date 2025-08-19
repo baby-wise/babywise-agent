@@ -42,12 +42,3 @@ def predecir_llanto(file_path):
     y_pred = modelo.predict(X)
     clase = np.argmax(y_pred)
     return "cry" if clase == 1 else "not_cry"
-
-def predict_audio(wav_bytes: bytes) -> bool:
-    import wave
-    import io
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp_wav:
-        tmp_wav.write(wav_bytes)
-        tmp_wav.flush()
-        resultado = predecir_llanto(tmp_wav.name)
-    return resultado == "cry"

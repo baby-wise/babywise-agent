@@ -4,8 +4,10 @@ from aiohttp import web
 import os
 from dotenv import load_dotenv
 from livekit import rtc
-from audio import predict_audio
+from audio import predecir_llanto
 import wave
+import tempfile
+TEMP_DIR = tempfile.gettempdir()
 
 # Cargar variables de entorno
 load_dotenv()
@@ -13,10 +15,9 @@ active_agents = {}
 LIVEKIT_URL = os.getenv("LIVEKIT_URL")
 BACKEND_URL = os.getenv("BACKEND_URL")
 
-TEMP_DIR = "temp"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
-async def process_audio(track: rtc.RemoteAudioTrack):
+async def process_audio(track: rtc.RemoteAudioTrack, room_name):
     audio_stream = rtc.AudioStream(track)
 
     buffer = bytearray()
@@ -42,17 +43,17 @@ async def process_audio(track: rtc.RemoteAudioTrack):
 
         # Guardar cada 6 segundos
         if target_bytes and len(buffer) >= target_bytes:
-            file_count += 1
-            filename = os.path.join(TEMP_DIR, f"audio_chunk_{file_count}.wav")
-            with wave.open(filename, 'wb') as wf:
-                wf.setnchannels(channels)
-                wf.setsampwidth(sample_width)
-                wf.setframerate(sample_rate)
-                wf.writeframes(buffer[:target_bytes])
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
+                with wave.open(tmp_file, "wb") as wf:
+                    wf.setnchannels(channels)
+                    wf.setsampwidth(sample_width)
+                    wf.setframerate(sample_rate)
+                    wf.writeframes(buffer[:target_bytes])
 
-            print(f"💾 Guardado: {filename} ({len(buffer[:target_bytes])} bytes)")
+                tmp_file.flush()
+                resultado = predecir_llanto(tmp_file.name)
+                print(f"🤖 Predicción: {resultado} en el archivo: {tmp_file.name}")
 
-            # Eliminar lo ya guardado del buffer
             buffer = buffer[target_bytes:]
 
     await audio_stream.aclose()
@@ -61,7 +62,7 @@ async def monitor_participants(room, room_name):
     """Chequea periódicamente participantes y desconecta si queda solo el agente"""
     while True:
         total = len(room.remote_participants) + 1  # +1 por el agente local
-        print(f"[Monitor] Participantes actuales (incluye agente): {total}")
+        #print(f"[Monitor] Participantes actuales (incluye agente): {total}")
         if total == 1:
             print("[Monitor] Solo queda el agente, desconectando...")
             await room.disconnect()
@@ -97,7 +98,7 @@ async def connect_agent_to_room(room_name, agent_identity):
     def on_track_subscribed(track, *_):
         if track.kind == rtc.TrackKind.KIND_AUDIO:
             print("🔔 Nuevo track de audio suscrito.")
-            asyncio.create_task(process_audio(track))
+            asyncio.create_task(process_audio(track, room_name))
 
     try:
         await room.connect(LIVEKIT_URL, token)
