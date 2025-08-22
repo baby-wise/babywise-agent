@@ -78,5 +78,5 @@ def prewarm(ctx):
     load_llanto_model()
 
 if __name__ == "__main__":
-    opts = WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, job_memory_warn_mb=0)
+    opts = WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, job_memory_warn_mb=0, agent_name='BabyWise_Agent')
     cli.run_app(opts)
