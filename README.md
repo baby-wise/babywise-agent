@@ -10,7 +10,7 @@
 6. En la cosnola te va a decir nombre del proyecto y si es el default, yo le puse babywise y que sea el default
 
 #### Opcional (para que no tire errores a la hora de escribir codigo)
-* Crear un entorno virtual de python: `python -m venv venv`
+* Crear un entorno virtual de python: `python -m venv .venv`
 * Activar el entrono virtual: `.venv\Scripts\activate`
 * Instalar dependencias: `pip install -r requirements.txt`
 
