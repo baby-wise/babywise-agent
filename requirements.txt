@@ -2,7 +2,7 @@ livekit-agents
 python-dotenv
 aiohttp
 librosa
-tensorflow-cpu
+torch
 numpy
 soundfile
 protobuf==5.28.3

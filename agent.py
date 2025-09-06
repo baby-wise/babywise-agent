@@ -17,7 +17,6 @@ logging.basicConfig(
 )
 
 logging.getLogger("numba").setLevel(logging.WARNING)
-logging.getLogger("tensorflow").setLevel(logging.ERROR)
 logging.getLogger("librosa").setLevel(logging.WARNING)
 
 logger = logging.getLogger("agent")
@@ -116,5 +115,5 @@ async def entrypoint(ctx: JobContext):
     await agent.on_enter(ctx)
 
 if __name__ == "__main__":
-    opts = WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, job_memory_warn_mb=0, agent_name='BabyWise_Agent')
+    opts = WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name='BabyWise_Agent')
     cli.run_app(opts)
