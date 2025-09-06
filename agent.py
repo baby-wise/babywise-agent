@@ -29,33 +29,36 @@ class BabyWiseAgent:
         self._prev_frame = None
         self._video_stream = None
         self._tasks = []
+        self._frame_counter = 0
+        self._frame_interval = 10  # Analiza cada 10 frames
+        self._room_name = None
 
     async def on_enter(self, ctx: JobContext):
         room = ctx.room
-        room_name = room.name
-        logger.debug(f"Agente conectado al room '{room_name}'")
+        self._room_name = room.name
+        logger.debug(f"Agente conectado al room '{self._room_name}'")
 
         # Suscribirse a tracks existentes
         for participant in room.remote_participants.values():
             for publication in participant.track_publications.values():
                 track = publication.track
                 if track:
-                    self._handle_track(track, room_name)
+                    self._handle_track(track, participant)
 
         # Suscribirse a nuevos tracks
         @room.on("track_subscribed")
-        def on_track_subscribed(track, *_):
-            self._handle_track(track, room_name)
+        def on_track_subscribed(track, publication, participant):
+            self._handle_track(track, participant)
 
         await ctx.connect(auto_subscribe=AutoSubscribe.SUBSCRIBE_ALL)
 
-    def _handle_track(self, track, room_name):
+    def _handle_track(self, track, participant=None):
         if track.kind == rtc.TrackKind.KIND_AUDIO:
             logger.debug("Nuevo track de audio suscrito")
-            asyncio.create_task(self.process_audio(track, room_name))
+            asyncio.create_task(self.process_audio(track, self._room_name))
         elif track.kind == rtc.TrackKind.KIND_VIDEO:
             logger.debug("Nuevo track de video suscrito")
-            self._create_video_stream(track)
+            self._create_video_stream(track, participant)
 
     async def process_audio(self, track: rtc.RemoteAudioTrack, room_name: str):
         audio_stream = rtc.AudioStream(track)
@@ -83,24 +86,27 @@ class BabyWiseAgent:
                         wf.writeframes(buffer[:target_bytes])
                     tmp_file.flush()
                     resultado = predecir_llanto(tmp_file.name)
-                    logger.debug(f"🤖 Predicción: {resultado} en {tmp_file.name} para el {room_name}")
+                    logger.debug(f"🤖 [Agent] Predicción llanto: {resultado} en {tmp_file.name} para el {room_name}")
                 buffer = buffer[target_bytes:]
         await audio_stream.aclose()
 
-    def _create_video_stream(self, track):
+    def _create_video_stream(self, track, participant=None):
         # Cerrar stream anterior si existe
         if self._video_stream is not None:
             self._video_stream.close()
         self._video_stream = rtc.VideoStream(track)
-        task = asyncio.create_task(self._read_video_stream())
+        task = asyncio.create_task(self._read_video_stream(participant))
         task.add_done_callback(lambda t: self._tasks.remove(t))
         self._tasks.append(task)
 
-    async def _read_video_stream(self):
+    async def _read_video_stream(self, participant=None):
+        participant_identity = getattr(participant, 'identity', None) if participant else None
         async for event in self._video_stream:
             self._prev_frame, self._latest_frame = self._latest_frame, event.frame
-            if self._prev_frame is not None:
-                detectar_movimiento(self._prev_frame, self._latest_frame)
+            self._frame_counter += 1
+            if self._prev_frame is not None and self._frame_counter % self._frame_interval == 0:
+                if detectar_movimiento(self._prev_frame, self._latest_frame):
+                    logger.debug(f"🤖 Movimiento detectado! Room: {self._room_name}, Participant: {participant_identity}")
 
 def prewarm(ctx):
     load_llanto_model()

@@ -24,5 +24,4 @@ def detectar_movimiento(prev_frame, current_frame, umbral=2_000_000):
     gray2 = cv2.resize(gray2, shape)
     diff = cv2.absdiff(gray1, gray2)
     suma = np.sum(diff)
-    print(f"[detectar_movimiento] suma diferencias: {suma}")
     return suma > umbral
