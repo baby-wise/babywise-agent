@@ -7,3 +7,4 @@ numpy
 soundfile
 protobuf==5.28.3
 opencv-python
+requests

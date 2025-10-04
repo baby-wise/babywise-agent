@@ -7,6 +7,7 @@ from livekit import rtc
 from livekit.agents import cli, JobContext, WorkerOptions, AutoSubscribe
 from audio import predecir_llanto, load_llanto_model
 from motion import detectar_movimiento
+from api import report_detection_event
 
 TEMP_DIR = tempfile.gettempdir()
 os.makedirs(TEMP_DIR, exist_ok=True)
@@ -67,6 +68,8 @@ class BabyWiseAgent:
         sample_width = 2
         target_bytes = None
 
+        participant_identity = getattr(track.participant, 'identity', None) if hasattr(track, 'participant') else None
+
         async for event in audio_stream:
             frame = event.frame
             if sample_rate is None or channels is None:
@@ -86,6 +89,12 @@ class BabyWiseAgent:
                     tmp_file.flush()
                     resultado = predecir_llanto(tmp_file.name)
                     logger.debug(f"🤖 [Agent] Predicción llanto: {resultado} en {tmp_file.name} para el {room_name}")
+                    if resultado == "cry":
+                        report_detection_event(
+                            group=room_name,
+                            baby=participant_identity,
+                            event_type="LLANTO"
+                        )
                 buffer = buffer[target_bytes:]
         await audio_stream.aclose()
 
@@ -105,7 +114,12 @@ class BabyWiseAgent:
             self._frame_counter += 1
             if self._prev_frame is not None and self._frame_counter % self._frame_interval == 0:
                 if detectar_movimiento(self._prev_frame, self._latest_frame):
-                    logger.debug(f"🤖 Movimiento detectado! Room: {self._room_name}, Participant: {participant_identity}")
+                    logger.debug(f"🤖 [Agent] Movimiento detectado! Room: {self._room_name}, Participant: {participant_identity}")
+                    report_detection_event(
+                        group=self._room_name,
+                        baby=participant_identity,
+                        event_type="MOVIMIENTO"
+                    )
 
 def prewarm(ctx):
     load_llanto_model()
