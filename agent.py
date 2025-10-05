@@ -55,20 +55,18 @@ class BabyWiseAgent:
     def _handle_track(self, track, participant=None):
         if track.kind == rtc.TrackKind.KIND_AUDIO:
             logger.debug("Nuevo track de audio suscrito")
-            asyncio.create_task(self.process_audio(track, self._room_name))
+            asyncio.create_task(self.process_audio(track, participant, self._room_name))
         elif track.kind == rtc.TrackKind.KIND_VIDEO:
             logger.debug("Nuevo track de video suscrito")
             self._create_video_stream(track, participant)
 
-    async def process_audio(self, track: rtc.RemoteAudioTrack, room_name: str):
+    async def process_audio(self, track: rtc.RemoteAudioTrack, participant: rtc.RemoteParticipant, room_name: str):
         audio_stream = rtc.AudioStream(track)
         buffer = bytearray()
         sample_rate = None
         channels = None
         sample_width = 2
         target_bytes = None
-
-        participant_identity = getattr(track.participant, 'identity', None) if hasattr(track, 'participant') else None
 
         async for event in audio_stream:
             frame = event.frame
@@ -88,11 +86,11 @@ class BabyWiseAgent:
                         wf.writeframes(buffer[:target_bytes])
                     tmp_file.flush()
                     resultado = predecir_llanto(tmp_file.name)
-                    logger.debug(f"🤖 [Agent] Predicción llanto: {resultado} en {tmp_file.name} para el {room_name}")
+                    logger.debug(f"🤖 [Agent] Predicción llanto: {resultado} de {participant} para el {room_name}")
                     if resultado == "cry":
                         report_detection_event(
                             group=room_name,
-                            baby=participant_identity,
+                            baby=participant.identity if participant else "unknown",
                             event_type="LLANTO"
                         )
                 buffer = buffer[target_bytes:]

@@ -13,6 +13,7 @@ def report_detection_event(group, baby, event_type, event_date=None):
         "type": event_type,
         "date": event_date
     }
+    print(f"[api] Reportando evento: {payload}")
     try:
         resp = requests.post(API_URL, json=payload, timeout=5)
         resp.raise_for_status()
