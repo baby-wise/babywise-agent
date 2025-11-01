@@ -2,7 +2,7 @@ import os
 import requests
 from datetime import datetime
 
-API_URL = "https://amused-top-sole.ngrok-free.app/events/detection" 
+API_URL = "https://babywise-api-production.up.railway.app/events/detection" 
 
 def report_detection_event(group, baby, event_type, event_date=None):
     if event_date is None:
